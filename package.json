@@ -1,0 +1,39 @@
+{
+  "name": "dicom_viewer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@cornerstonejs/core": "^1.73.0",
+    "add": "^2.0.6",
+    "cornerstone-core": "^2.6.1",
+    "cornerstone-tools": "^6.0.10",
+    "cornerstone-wado-image-loader": "^4.13.2",
+    "daikon": "^1.2.46",
+    "dicom-parser": "^1.8.21",
+    "dicom.ts": "^1.0.6",
+    "framer-motion": "^11.1.7",
+    "next": "14.2.3",
+    "node-fetch": "^3.3.2",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-hot-toast": "^2.4.1",
+    "react-vtkjs-viewport": "^0.14.5",
+    "yarn": "^1.22.22"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.3",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}
