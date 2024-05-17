@@ -12,13 +12,14 @@ import Lungs from "../public/icons/lungs-lung-svgrepo-com.svg";
 import Plus from "../public/icons/plus-large-svgrepo-com (1).svg";
 import Donut from "../public/icons/circle-dashed-svgrepo-com.svg";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast, Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import dicomParser from "dicom-parser";
 import * as cornerstone from "cornerstone-core";
 import * as cornerstoneWADOImageLoader from "cornerstone-wado-image-loader";
 import { initializeCornerstone } from "./cornerstone_init";
+import { useLongPress } from "use-long-press";
 
 initializeCornerstone();
 
@@ -38,12 +39,25 @@ export default function Home() {
   const [preview, setPreview] = useState("");
   const [draggedOver, setDraggedOver] = useState(false);
   const [showInfoMenu, setShowInfoMenu] = useState(false);
+  const [dicomImages, setDicomImages] = useState<any[]>([]);
+  cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+  const canvasRefs = useRef<HTMLDivElement[]>([]);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [imageUrlIndex, setImageUrlIndex] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [showImages, setShowImages] = useState(false);
+  const [dicomLoading, setDicomLoading] = useState(false);
+  const [canScroll, setCanScroll] = useState(false);
 
   const handleClearValues = async () => {
-    setImageData(null);
     setImageFileName("");
     setPreview("");
     setDraggedOver(false);
+    setImageUrls([]);
+    setImageUrlIndex(0);
+    setDicomImages([]);
+    setReady(false);
+    setShowImages(false);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
@@ -62,37 +76,59 @@ export default function Home() {
 
   const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    const objectUrl = URL.createObjectURL(file);
-    setPreview(objectUrl);
-    const data = new FormData();
-    data.append("image", file);
-    setImageFileName(file.name);
-    setImageData(data);
-    setDraggedOver(false);
+    const files = e.dataTransfer.files;
+
+    if (files.length > 0) {
+      setDicomLoading(true);
+      setDraggedOver(false);
+      setDicomImages(Array.from(files));
+    } else {
+      setDraggedOver(false);
+    }
   };
 
-  const [dicomImages, setDicomImages] = useState<any[]>([]);
-  cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
-  const canvasRefs = useRef<HTMLDivElement[]>([]);
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [imageUrlIndex, setImageUrlIndex] = useState(0);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setDicomLoading(true);
+      setDicomImages(Array.from(event.target.files));
+    }
+  };
+
+  useEffect(() => {
+    const loadAndConvertImages = async () => {
+      const sortedFiles = dicomImages
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const urls = await Promise.all(sortedFiles.map(convertDicomToImageUrl));
+      setImageUrls(urls);
+      setPreview(urls[0]);
+      setReady(true);
+      setImageFileName("");
+      setDicomLoading(false);
+    };
+
+    if (dicomImages.length > 0) {
+      loadAndConvertImages();
+    }
+  }, [dicomImages]);
 
   useEffect(() => {
     const handleWheel = (event: any) => {
-      console.log(imageUrlIndex);
-      if (event.deltaY > 0) {
-        //going up
-        if (imageUrlIndex < imageUrls.length - 1) {
-          console.log("increase");
-          setImageUrlIndex(imageUrlIndex + 1);
+      console.log(canScroll);
+      if (canScroll) {
+        if (event.deltaY > 0) {
+          //going up
+          if (imageUrlIndex < imageUrls.length - 1) {
+            console.log("increase");
+            setImageUrlIndex(imageUrlIndex + 1);
+          }
         }
-      }
-      //going down
-      else {
-        if (imageUrlIndex > 0) {
-          console.log("decrease");
-          setImageUrlIndex(imageUrlIndex - 1);
+        //going down
+        else {
+          if (imageUrlIndex > 0) {
+            console.log("decrease");
+            setImageUrlIndex(imageUrlIndex - 1);
+          }
         }
       }
     };
@@ -102,7 +138,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("wheel", handleWheel);
     };
-  }, [imageUrls, imageUrlIndex]);
+  }, [canScroll, imageUrls, imageUrlIndex]);
 
   const convertDicomToImageUrl = async (file: File): Promise<string> => {
     const fileUrl = URL.createObjectURL(file);
@@ -116,32 +152,118 @@ export default function Home() {
       cornerstone.renderToCanvas(canvas, image);
 
       // Convert the canvas to a data URL (base64 string)
-      const imageUrl = canvas.toDataURL("image/jpeg"); // or 'image/png'
+      const imageUrl = canvas.toDataURL("image/jpeg");
       return imageUrl;
     }
 
     throw new Error("Failed to create canvas context");
   };
 
-  useEffect(() => {
-    const loadAndConvertImages = async () => {
-      const urls = await Promise.all(dicomImages.map(convertDicomToImageUrl));
-      setImageUrls(urls);
-    };
+  const [longPressInterval, setLongPressInterval] =
+    useState<NodeJS.Timeout | null>(null);
 
-    if (dicomImages.length > 0) {
-      loadAndConvertImages();
+  const incrementIndex = useCallback(() => {
+    setImageUrlIndex((prevIndex) =>
+      prevIndex < imageUrls.length - 1 ? prevIndex + 1 : prevIndex
+    );
+  }, [imageUrls.length]);
+
+  const decrementIndex = useCallback(() => {
+    setImageUrlIndex((prevIndex) =>
+      prevIndex > 0 ? prevIndex - 1 : prevIndex
+    );
+  }, [imageUrls.length]);
+
+  const handleLongPressStartDec = useCallback(() => {
+    decrementIndex();
+    const intervalId = setInterval(decrementIndex, 40);
+    setLongPressInterval(intervalId);
+  }, [incrementIndex]);
+
+  const handleLongPressEndDec = useCallback(() => {
+    if (longPressInterval) {
+      clearInterval(longPressInterval);
+      setLongPressInterval(null);
     }
-  }, [dicomImages]);
+  }, [longPressInterval]);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setDicomImages(Array.from(event.target.files));
+  const handleLongPressStartInc = useCallback(() => {
+    incrementIndex();
+    const intervalId = setInterval(incrementIndex, 40);
+    setLongPressInterval(intervalId);
+  }, [incrementIndex]);
+
+  const handleLongPressEndInc = useCallback(() => {
+    if (longPressInterval) {
+      clearInterval(longPressInterval);
+      setLongPressInterval(null);
+    }
+  }, [longPressInterval]);
+
+  const bindInc = useLongPress(handleLongPressStartInc, {
+    onFinish: handleLongPressEndInc,
+    onCancel: handleLongPressEndInc,
+    threshold: 100,
+  });
+
+  const bindDec = useLongPress(handleLongPressStartDec, {
+    onFinish: handleLongPressEndDec,
+    onCancel: handleLongPressEndDec,
+    threshold: 100,
+  });
+
+  const [isDragging, setIsDragging] = useState(false);
+  const startYRef = useRef(null);
+
+  const handleMouseDown = (event: any) => {
+    setIsDragging(true);
+    startYRef.current = event.clientY;
+  };
+
+  const handleMouseMove = (event: any) => {
+    if (isDragging && startYRef.current !== null) {
+      const deltaY = event.clientY - startYRef.current;
+
+      if (deltaY < -0.5) {
+        // Threshold for detecting upward drag
+        setImageUrlIndex((prevIndex) =>
+          Math.min(prevIndex + 1, imageUrls.length - 1)
+        );
+        startYRef.current = event.clientY; // Reset startY to the current position
+      } else if (deltaY > 0.5) {
+        // Threshold for detecting downward drag
+        setImageUrlIndex((prevIndex) => Math.max(prevIndex - 1, 0));
+        startYRef.current = event.clientY; // Reset startY to the current position
+      }
     }
   };
 
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    startYRef.current = null;
+  };
+
+  const [xCoordinate, setXCoordinate] = useState(0);
+  const [yCoordinate, setYCoordinate] = useState(0);
+
+  const handleMouseMoveImage = (
+    event: React.MouseEvent<HTMLDivElement, MouseEvent>
+  ) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    let x = event.clientX - rect.left;
+    let y = event.clientY - rect.top;
+    if (x < 0) {
+      x = 0;
+    }
+    if (y < 0) {
+      y = 0;
+    }
+    setXCoordinate(x);
+    setYCoordinate(y);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-900 text-white w-full px-4">
+    <div className="min-h-screen bg-black text-white w-full px-4">
       <Toaster position="top-right"></Toaster>
       <div className="m-auto">
         <div className="py-4 flex justify-between">
@@ -158,27 +280,30 @@ export default function Home() {
           <div className="flex gap-1 justify-center items-center relative">
             {showInfoMenu && (
               <motion.div
-                className="absolute right-0 top-12 bg-white/10 border border-white/10 shadow-sm rounded-md w-max overflow-hidden backdrop-blur-xl"
+                className="absolute right-0 top-12 bg-white/10 border border-white/20 shadow-sm rounded-md w-max overflow-hidden backdrop-blur-xl z-50"
                 initial={{ opacity: 0, y: -30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: 0, ease: "backOut" }}
                 exit={{ opacity: 0, y: -30 }}
               >
                 <p className="p-3 hover:bg-white/10 cursor-pointer">
-                  <Link href={"/termsofuse"} target="_blank">
-                    Terms of Use
+                  <Link
+                    href={"https://tylerhaisman.com/#contact"}
+                    target="_blank"
+                  >
+                    Contact Me
                   </Link>
                 </p>
-                <hr className="border-white/10 bg-white/10" />
+                <hr className="border-white/20 bg-white/10" />
                 <p className="p-3 hover:bg-white/10 cursor-pointer">
-                  <Link href={"/privacypolicy"} target="_blank">
-                    Privacy Policy
+                  <Link href={"https://tylerhaisman.com"} target="_blank">
+                    Project Docs
                   </Link>
                 </p>
               </motion.div>
             )}
             <button
-              className="bg-white/10 border border-white/10 shadow-sm p-2 rounded-md flex gap-2 justify-center items-center"
+              className="bg-white/10 border border-white/20 shadow-sm p-2 rounded-md flex gap-2 justify-center items-center"
               onClick={() => {
                 window.open("https://github.com", "_blank");
               }}
@@ -186,7 +311,7 @@ export default function Home() {
               <Image src={Github} alt="Github" className="w-4 h-4"></Image>
             </button>
             <button
-              className="bg-white/10 border border-white/10 shadow-sm p-2 rounded-md flex gap-2 justify-center items-center"
+              className="bg-white/10 border border-white/20 shadow-sm p-2 rounded-md flex gap-2 justify-center items-center"
               onClick={() => {
                 setShowInfoMenu(!showInfoMenu);
               }}
@@ -195,21 +320,21 @@ export default function Home() {
             </button>
           </div>
         </div>
-        <hr className="h-0 border-t border-white/10" />
+        {/* <hr className="h-0 border-t border-white/20" /> */}
         <AnimatePresence>
-          {imageUrls.length == 0 && (
+          {!showImages && (
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0, ease: "backOut" }}
-              className="pt-4 absolute left-4 right-4 top-20 bottom-4 flex flex-col"
+              className="mt-4 pt-4 absolute left-4 right-4 top-16 bottom-4 flex flex-col border-t border-white/20"
             >
               <div className="">
                 <h1>Upload your DICOM directory here:</h1>
                 <p className="mt-2">
                   The file must be a directory containing only one or more files
                   in{" "}
-                  <span className="px-2 py-1 font-normal bg-white/10 rounded-md border border-white/10">
+                  <span className="px-2 py-1 font-normal bg-white/10 rounded-md border border-white/20">
                     .DCM
                   </span>{" "}
                   format.
@@ -221,8 +346,8 @@ export default function Home() {
                 transition={{ duration: 0.5, delay: 0.2, ease: "backOut" }}
                 className={
                   draggedOver
-                    ? "bg-white/20 duration-100 px-4 py-16 rounded-md border border-dashed border-white/10 mt-6 flex flex-col justify-center items-center text-center cursor-pointer flex-1"
-                    : "bg-white/10 hover:bg-white/20 duration-100 px-4 py-16 rounded-md border border-dashed border-white/10 mt-6 flex flex-col justify-center items-center text-center cursor-pointer flex-1"
+                    ? "bg-white/20 duration-100 px-4 py-16 rounded-md border border-dashed border-white/20 mt-4 flex flex-col justify-center items-center text-center cursor-pointer flex-1"
+                    : "bg-white/10 hover:bg-white/20 duration-100 px-4 py-16 rounded-md border border-dashed border-white/20 mt-4 flex flex-col justify-center items-center text-center cursor-pointer flex-1"
                 }
                 htmlFor="fileInput"
                 onDragOver={handleDragOver}
@@ -230,7 +355,7 @@ export default function Home() {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
               >
-                {!imageFileName && !imageData && (
+                {ready == false && !dicomLoading && (
                   <div className="flex flex-col justify-center items-center text-center">
                     <Image
                       src={ImageIcon}
@@ -241,7 +366,7 @@ export default function Home() {
                           : "w-16 h-16 duration-200"
                       }
                     ></Image>
-                    <div className="flex gap-1 mt-6">
+                    <div className="flex gap-1 mt-4">
                       <h2 className="">Click to upload</h2> or drag and drop
                     </div>
                     <p className="text-white/60">
@@ -250,7 +375,31 @@ export default function Home() {
                     </p>
                   </div>
                 )}
-                {imageFileName && imageData && (
+                {ready == false && dicomLoading && (
+                  <div className="flex flex-col justify-center items-center text-center">
+                    <div className="relative">
+                      <motion.div
+                        className=""
+                        initial={{ opacity: 0, y: 30, z: 1 }}
+                        animate={{ opacity: 1, y: 0, z: 1 }}
+                        transition={{
+                          duration: 0.5,
+                          delay: 0,
+                          ease: "backOut",
+                        }}
+                      >
+                        <div className="lds-ring mb-4">
+                          <div></div>
+                          <div></div>
+                          <div></div>
+                          <div></div>
+                        </div>
+                      </motion.div>
+                    </div>
+                    <p>Loading DICOM files...</p>
+                  </div>
+                )}
+                {ready == true && !dicomLoading && (
                   <div className="flex flex-col justify-center items-center text-center">
                     <div className="relative">
                       <motion.div
@@ -266,7 +415,7 @@ export default function Home() {
                         <Image
                           src={Check}
                           alt=""
-                          className="w-10 h-10 absolute bg-slate-50 rounded-full p-1 -right-4 -top-4 shadow-md z-20"
+                          className="w-10 h-10 absolute bg-white/10 border border-white/20 rounded-full p-1 -right-4 -top-4 shadow-md z-20 backdrop-blur-lg"
                         ></Image>
                       </motion.div>
                       <motion.div
@@ -279,20 +428,19 @@ export default function Home() {
                           ease: "backOut",
                         }}
                       >
-                        {/* <Image
-                            src={preview}
-                            alt="Preview"
-                            width="0"
-                            height="0"
-                            className="w-24 max-h-24 rounded-md shadow-md relative z-10"
-                          ></Image> */}
+                        <Image
+                          src={preview}
+                          alt="Preview"
+                          width="0"
+                          height="0"
+                          className="w-24 max-h-24 rounded-md shadow-md relative z-10 border border-white/20"
+                        ></Image>
                       </motion.div>
                     </div>
-                    <div className="flex gap-1 mt-6">
-                      <h2 className="font-black">Directory uploaded:</h2>
-                      {imageFileName}
+                    <div className="flex gap-1 mt-4">
+                      <h2 className="">DICOM files uploaded.</h2>
                     </div>
-                    <p className="text-black/30">
+                    <p className="text-white/60">
                       Press the "View DICOM Images" button to continue.
                     </p>
                   </div>
@@ -300,7 +448,7 @@ export default function Home() {
               </motion.label>
               <input
                 type="file"
-                // accept=""
+                accept=".dcm"
                 onChange={handleFileChange}
                 id="fileInput"
                 className="hidden"
@@ -309,16 +457,21 @@ export default function Home() {
                 // mozdirectory=""
                 multiple
               />
-              {imageData && imageFileName && (
+
+              {ready == true && (
                 <div className="flex gap-3">
                   <motion.button
-                    className="mt-6 bg-cyan-700 px-4 py-3 rounded-md text-slate-50 flex justify-center items-center backdrop-blur-lg duration-200"
+                    className="mt-4 bg-white/10 border border-white/20 px-4 py-3 rounded-md text-white flex justify-center items-center backdrop-blur-lg duration-200"
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{
                       duration: 0.5,
                       delay: 0,
                       ease: "backOut",
+                    }}
+                    onClick={() => {
+                      setShowImages(true);
+                      setImageUrlIndex(0);
                     }}
                   >
                     View DICOM Images{" "}
@@ -336,7 +489,7 @@ export default function Home() {
                     </div>
                   </motion.button>
                   <motion.button
-                    className="mt-6 bg-slate-50 px-4 py-3 rounded-md flex justify-center items-center backdrop-blur-lg duration-200 border border-white/10"
+                    className="mt-4 hover:bg-white/10 hover:border border-white/20 px-4 py-3 rounded-md text-white flex justify-center items-center backdrop-blur-lg duration-200"
                     onClick={() => handleClearValues()}
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -355,25 +508,88 @@ export default function Home() {
         </AnimatePresence>
 
         <AnimatePresence>
-          {imageUrls.length != 0 && (
+          {showImages && imageUrls.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0, ease: "backOut" }}
-              className="pt-4 absolute left-4 right-4 top-20 bottom-4 flex flex-col"
+              className="pt-4 absolute left-4 right-4 top-16 bottom-4 flex flex-col"
             >
+              <motion.div className="mb-4 flex gap-2 justify-between items-center">
+                <div className="flex gap-2">
+                  <div className="px-2 py-1 bg-white/10 border-white/20 border rounded-md">
+                    X: {xCoordinate}
+                  </div>
+                  <div className="px-2 py-1 bg-white/10 border-white/20 border rounded-md">
+                    Y: {yCoordinate}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="px-2 py-1 bg-white/10 border-white/20 border rounded-md">
+                    {imageUrlIndex + 1} / {imageUrls.length}
+                  </div>
+                  <div className="bg-white/10 border-white/20 border rounded-md flex items-center cursor-pointer">
+                    <div
+                      {...bindDec()}
+                      className=" hover:bg-white/10 p-2 h-full"
+                      onClick={() => {
+                        if (imageUrlIndex > 0) {
+                          setImageUrlIndex(imageUrlIndex - 1);
+                        }
+                      }}
+                    >
+                      <Image
+                        src={Arrow}
+                        alt="Arrow down"
+                        className="rotate-180 w-3 h-full"
+                      ></Image>
+                    </div>
+                    <hr className="h-full w-0 border-r border-white/20" />
+                    <div
+                      {...bindInc()}
+                      className="hover:bg-white/10 p-2 h-full"
+                      onClick={() => {
+                        if (imageUrlIndex < imageUrls.length - 1) {
+                          setImageUrlIndex(imageUrlIndex + 1);
+                        }
+                      }}
+                    >
+                      <Image
+                        src={Arrow}
+                        alt="Arrow up"
+                        className="w-3 h-full"
+                      ></Image>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2, ease: "backOut" }}
                 className={
-                  "duration-100 rounded-md border border-dashed border-white/10 flex flex-col justify-center items-center text-center flex-1 relative overflow-y-auto"
+                  "bg-black duration-100 rounded-md border border-dashed border-white/20 text-center flex justify-center items-center flex-1 relative overflow-y-auto hover:cursor-crosshair active:cursor-ns-resize"
                 }
+                onMouseEnter={() => {
+                  console.log("Mouse entered image area");
+                  setCanScroll(true);
+                }}
+                onMouseLeave={() => {
+                  console.log("Mouse left image area");
+                  setCanScroll(false);
+                }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseOut={handleMouseUp}
               >
                 <img
-                  src={imageUrls.at(imageUrlIndex)}
+                  src={imageUrls[imageUrlIndex]}
                   alt={`DICOM ${imageUrlIndex}`}
-                  className="flex-1"
+                  className="h-full min-w-fit"
+                  draggable="false"
+                  onMouseMove={handleMouseMoveImage}
+                  // style={{scale: }}
                 />
               </motion.div>
             </motion.div>
