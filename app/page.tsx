@@ -11,6 +11,11 @@ import Start from "../public/icons/start-favorite-svgrepo-com.svg";
 import Lungs from "../public/icons/lungs-lung-svgrepo-com.svg";
 import Plus from "../public/icons/plus-large-svgrepo-com (1).svg";
 import Donut from "../public/icons/circle-dashed-svgrepo-com.svg";
+import Contrast from "../public/icons/contrast-908-svgrepo-com.svg";
+import Cursor from "../public/icons/cursor-svgrepo-com.svg";
+import Crosshair from "../public/icons/crosshair-simple-svgrepo-com.svg";
+import ZoomIn from "../public/icons/zoom-in-1462-svgrepo-com.svg";
+import ZoomOut from "../public/icons/zoom-out-1460-svgrepo-com.svg";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast, Toaster } from "react-hot-toast";
@@ -32,6 +37,15 @@ declare module "react" {
   }
 }
 
+interface ImageUrlsInterface {
+  axialUrl: string;
+  pixelSpacing: Array<Number>;
+  widthMM: Number;
+  heightMM: Number;
+  widthPX: Number;
+  heightPX: Number;
+}
+
 export default function Home() {
   const router = useRouter();
   const [imageData, setImageData] = useState<FormData | null>(null);
@@ -42,12 +56,15 @@ export default function Home() {
   const [dicomImages, setDicomImages] = useState<any[]>([]);
   cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
   const canvasRefs = useRef<HTMLDivElement[]>([]);
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [imageUrls, setImageUrls] = useState<ImageUrlsInterface[]>([]);
   const [imageUrlIndex, setImageUrlIndex] = useState(0);
   const [ready, setReady] = useState(false);
   const [showImages, setShowImages] = useState(false);
   const [dicomLoading, setDicomLoading] = useState(false);
   const [canScroll, setCanScroll] = useState(false);
+  const [contrastValue, setContrastValue] = useState(100);
+  const [cursor, setCursor] = useState("cursor");
+  const [zoom, setZoom] = useState(1);
 
   const handleClearValues = async () => {
     setImageFileName("");
@@ -101,7 +118,7 @@ export default function Home() {
         .sort((a, b) => a.name.localeCompare(b.name));
       const urls = await Promise.all(sortedFiles.map(convertDicomToImageUrl));
       setImageUrls(urls);
-      setPreview(urls[0]);
+      setPreview(urls[0].axialUrl);
       setReady(true);
       setImageFileName("");
       setDicomLoading(false);
@@ -140,7 +157,9 @@ export default function Home() {
     };
   }, [canScroll, imageUrls, imageUrlIndex]);
 
-  const convertDicomToImageUrl = async (file: File): Promise<string> => {
+  const convertDicomToImageUrl = async (
+    file: File
+  ): Promise<ImageUrlsInterface> => {
     const fileUrl = URL.createObjectURL(file);
     const image = await cornerstone.loadImage(`wadouri:${fileUrl}`);
     const canvas = document.createElement("canvas");
@@ -152,8 +171,24 @@ export default function Home() {
       cornerstone.renderToCanvas(canvas, image);
 
       // Convert the canvas to a data URL (base64 string)
-      const imageUrl = canvas.toDataURL("image/jpeg");
-      return imageUrl;
+      const axialUrl = canvas.toDataURL("image/jpeg");
+
+      // Extract pixel spacing
+      const pixelSpacing = image.data.string("x00280030")
+        ? image.data.string("x00280030").split("\\").map(Number)
+        : [1, 1];
+
+      const widthMM = image.width * pixelSpacing[1];
+      const heightMM = image.height * pixelSpacing[0];
+
+      return {
+        axialUrl,
+        pixelSpacing,
+        widthMM,
+        heightMM,
+        widthPX: image.width,
+        heightPX: image.height,
+      };
     }
 
     throw new Error("Failed to create canvas context");
@@ -224,13 +259,13 @@ export default function Home() {
     if (isDragging && startYRef.current !== null) {
       const deltaY = event.clientY - startYRef.current;
 
-      if (deltaY < -0.5) {
+      if (deltaY < -0.1) {
         // Threshold for detecting upward drag
         setImageUrlIndex((prevIndex) =>
           Math.min(prevIndex + 1, imageUrls.length - 1)
         );
         startYRef.current = event.clientY; // Reset startY to the current position
-      } else if (deltaY > 0.5) {
+      } else if (deltaY > 0.1) {
         // Threshold for detecting downward drag
         setImageUrlIndex((prevIndex) => Math.max(prevIndex - 1, 0));
         startYRef.current = event.clientY; // Reset startY to the current position
@@ -250,14 +285,35 @@ export default function Home() {
     event: React.MouseEvent<HTMLDivElement, MouseEvent>
   ) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    let x = event.clientX - rect.left;
-    let y = event.clientY - rect.top;
+
+    const actualWidth = Number(imageUrls[imageUrlIndex].widthPX);
+    const actualHeight = Number(imageUrls[imageUrlIndex].heightPX);
+
+    const displayedWidth = rect.width;
+    const displayedHeight = rect.height;
+
+    const scaleX = actualWidth / displayedWidth;
+    const scaleY = actualHeight / displayedHeight;
+
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    let x = mouseX * scaleX;
+    let y = mouseY * scaleY;
+
     if (x < 0) {
       x = 0;
     }
     if (y < 0) {
       y = 0;
     }
+    if (x > actualWidth) {
+      x = actualWidth;
+    }
+    if (y > actualHeight) {
+      y = actualHeight;
+    }
+
     setXCoordinate(x);
     setYCoordinate(y);
   };
@@ -515,21 +571,100 @@ export default function Home() {
               transition={{ duration: 0.5, delay: 0, ease: "backOut" }}
               className="pt-4 absolute left-4 right-4 top-16 bottom-4 flex flex-col"
             >
-              <motion.div className="mb-4 flex gap-2 justify-between items-center">
+              <motion.div className="mb-4 flex gap-2 justify-between items-center font-mono">
                 <div className="flex gap-2">
-                  <div className="px-2 py-1 bg-white/10 border-white/20 border rounded-md">
-                    X: {xCoordinate}
+                  <button
+                    className={
+                      cursor == "cursor"
+                        ? "px-2 py-1 bg-white/20 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                        : "px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                    }
+                    onClick={() => setCursor("cursor")}
+                  >
+                    <Image
+                      src={Cursor}
+                      alt="Cursor"
+                      className="w-4 h-full"
+                    ></Image>
+                  </button>
+                  <button
+                    className={
+                      cursor == "crosshair"
+                        ? "px-2 py-1 bg-white/20 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                        : "px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                    }
+                    onClick={() => setCursor("crosshair")}
+                  >
+                    <Image
+                      src={Crosshair}
+                      alt="Crosshair"
+                      className="w-4 h-full"
+                    ></Image>
+                  </button>
+                  <div className="bg-white/10 border-white/20 border rounded-md flex items-center cursor-pointer h-10 justify-center">
+                    <button
+                      className=" hover:bg-white/10 p-2 h-full"
+                      onClick={() => setZoom(zoom * 1.2)}
+                    >
+                      <Image
+                        src={ZoomIn}
+                        alt="Arrow down"
+                        className="w-4 h-full"
+                      ></Image>
+                    </button>
+                    <hr className="h-full w-0 border-r border-white/20" />
+                    <button
+                      className="hover:bg-white/10 p-2 h-full"
+                      onClick={() => setZoom(zoom / 1.2)}
+                    >
+                      <Image
+                        src={ZoomOut}
+                        alt="Arrow up"
+                        className="w-4 h-full"
+                      ></Image>
+                    </button>
                   </div>
-                  <div className="px-2 py-1 bg-white/10 border-white/20 border rounded-md">
-                    Y: {yCoordinate}
-                  </div>
+                  <button className="px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2">
+                    <Image
+                      src={Contrast}
+                      alt="Contrast"
+                      className="w-4 h-full"
+                    ></Image>
+                    <div className="flex gap-2 items-center justify-center">
+                      <p className="bg-transparent border-b border-white/20">
+                        {contrastValue}
+                      </p>
+                      <div className="flex flex-col-reverse items-center justify-center">
+                        <button
+                          className=" hover:bg-white/10"
+                          onClick={() => setContrastValue(contrastValue - 10)}
+                        >
+                          <Image
+                            src={Arrow}
+                            alt="Arrow down"
+                            className="rotate-180 w-3 h-full"
+                          ></Image>
+                        </button>
+                        <button
+                          className="hover:bg-white/10"
+                          onClick={() => setContrastValue(contrastValue + 10)}
+                        >
+                          <Image
+                            src={Arrow}
+                            alt="Arrow up"
+                            className="w-3 h-full"
+                          ></Image>
+                        </button>
+                      </div>
+                    </div>
+                  </button>
                 </div>
                 <div className="flex gap-2">
-                  <div className="px-2 py-1 bg-white/10 border-white/20 border rounded-md">
+                  <div className="px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex flex-col justify-center items-center">
                     {imageUrlIndex + 1} / {imageUrls.length}
                   </div>
-                  <div className="bg-white/10 border-white/20 border rounded-md flex items-center cursor-pointer">
-                    <div
+                  <div className="bg-white/10 border-white/20 border rounded-md flex items-center cursor-pointer h-10 justify-center">
+                    <button
                       {...bindDec()}
                       className=" hover:bg-white/10 p-2 h-full"
                       onClick={() => {
@@ -543,9 +678,9 @@ export default function Home() {
                         alt="Arrow down"
                         className="rotate-180 w-3 h-full"
                       ></Image>
-                    </div>
+                    </button>
                     <hr className="h-full w-0 border-r border-white/20" />
-                    <div
+                    <button
                       {...bindInc()}
                       className="hover:bg-white/10 p-2 h-full"
                       onClick={() => {
@@ -559,7 +694,7 @@ export default function Home() {
                         alt="Arrow up"
                         className="w-3 h-full"
                       ></Image>
-                    </div>
+                    </button>
                   </div>
                 </div>
               </motion.div>
@@ -568,7 +703,7 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2, ease: "backOut" }}
                 className={
-                  "bg-black duration-100 rounded-md border border-dashed border-white/20 text-center flex justify-center items-center flex-1 relative overflow-y-auto hover:cursor-crosshair active:cursor-ns-resize"
+                  "bg-black duration-100 rounded-md border border-dashed border-white/20 text-center flex justify-center items-center flex-1 relative overflow-y-auto active:cursor-ns-resize text-red-500 text-xs font-mono"
                 }
                 onMouseEnter={() => {
                   console.log("Mouse entered image area");
@@ -584,13 +719,54 @@ export default function Home() {
                 onMouseOut={handleMouseUp}
               >
                 <img
-                  src={imageUrls[imageUrlIndex]}
+                  src={imageUrls[imageUrlIndex].axialUrl}
                   alt={`DICOM ${imageUrlIndex}`}
-                  className="h-full min-w-fit"
+                  className={
+                    cursor == "crosshair"
+                      ? "h-full min-w-fit cursor-crosshair"
+                      : "h-full min-w-fit"
+                  }
                   draggable="false"
                   onMouseMove={handleMouseMoveImage}
+                  style={{ filter: `contrast(${contrastValue}%)`, scale: zoom }}
                   // style={{scale: }}
                 />
+                <div className="absolute right-4 bottom-4 flex gap-2">
+                  <div className="">
+                    X:{" "}
+                    {(
+                      xCoordinate *
+                      Number(imageUrls[imageUrlIndex].pixelSpacing[1])
+                    ).toFixed(2)}
+                  </div>
+                  <div className="">
+                    Y:{" "}
+                    {(
+                      yCoordinate *
+                      Number(imageUrls[imageUrlIndex].pixelSpacing[0])
+                    ).toFixed(2)}
+                  </div>
+                </div>
+                <div className="absolute left-4 bottom-4 flex gap-2">
+                  <div className="">
+                    W: {Number(imageUrls[imageUrlIndex].widthMM).toFixed(2)}
+                  </div>
+                  <div className="">
+                    H: {Number(imageUrls[imageUrlIndex].heightMM).toFixed(2)}
+                  </div>
+                </div>
+                <div className="absolute left-4 my-auto">
+                  <div className="">R</div>
+                </div>
+                <div className="absolute right-4 my-auto">
+                  <div className="">L</div>
+                </div>
+                <div className="absolute top-4 mx-auto">
+                  <div className="">A</div>
+                </div>
+                <div className="absolute bottom-4 mx-auto">
+                  <div className="">P</div>
+                </div>
               </motion.div>
             </motion.div>
           )}
