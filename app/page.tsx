@@ -16,6 +16,8 @@ import Cursor from "../public/icons/cursor-svgrepo-com.svg";
 import Crosshair from "../public/icons/crosshair-simple-svgrepo-com.svg";
 import ZoomIn from "../public/icons/zoom-in-1462-svgrepo-com.svg";
 import ZoomOut from "../public/icons/zoom-out-1460-svgrepo-com.svg";
+import JoystickIcon from "../public/icons/joystick-svgrepo-com.svg";
+
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast, Toaster } from "react-hot-toast";
@@ -345,6 +347,7 @@ export default function Home() {
 
   const [dots, setDots] = useState<Array<DotInterface>>([]);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [showJoystick, setShowJoystick] = useState(false);
 
   const handleImageClick = (event: any) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -381,6 +384,25 @@ export default function Home() {
     const deltaY2 = deltaY * deltaY;
     return Math.sqrt(deltaX2 + deltaY2);
   };
+
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+
+  const [joystickX, setJoystickX] = useState(0);
+  const [joystickY, setJoystickY] = useState(0);
+
+  const handleMove = (event: any) => {
+    if (event.x !== null && event.y !== null) {
+      setJoystickX(event.x);
+      setJoystickY(event.y);
+    }
+  };
+
+  useEffect(() => {
+    const speed = 2;
+    setTranslateX(translateX - joystickX * speed);
+    setTranslateY(translateY + joystickY * speed);
+  }, [joystickX, joystickY]);
 
   return (
     <div className="min-h-screen bg-black text-white w-full px-4">
@@ -425,7 +447,10 @@ export default function Home() {
             <button
               className="bg-white/10 border border-white/20 shadow-sm p-2 rounded-md flex gap-2 justify-center items-center"
               onClick={() => {
-                window.open("https://github.com", "_blank");
+                window.open(
+                  "https://github.com/tylerhaisman/online_dicom_viewer",
+                  "_blank"
+                );
               }}
             >
               <Image src={Github} alt="Github" className="w-4 h-4"></Image>
@@ -667,20 +692,6 @@ export default function Home() {
                   </button>
                   <div className="bg-white/10 border-white/20 border rounded-md flex items-center cursor-pointer h-10 justify-center">
                     <button
-                      className=" hover:bg-white/10 p-2 h-full"
-                      onClick={() => {
-                        setZoom(zoom * 1.2);
-                        setDots([]);
-                      }}
-                    >
-                      <Image
-                        src={ZoomIn}
-                        alt="Arrow down"
-                        className="w-4 h-full"
-                      ></Image>
-                    </button>
-                    <hr className="h-full w-0 border-r border-white/20" />
-                    <button
                       className="hover:bg-white/10 p-2 h-full"
                       onClick={() => {
                         setZoom(zoom / 1.2);
@@ -690,6 +701,20 @@ export default function Home() {
                       <Image
                         src={ZoomOut}
                         alt="Arrow up"
+                        className="w-4 h-full"
+                      ></Image>
+                    </button>
+                    <hr className="h-full w-0 border-r border-white/20" />
+                    <button
+                      className=" hover:bg-white/10 p-2 h-full"
+                      onClick={() => {
+                        setZoom(zoom * 1.2);
+                        setDots([]);
+                      }}
+                    >
+                      <Image
+                        src={ZoomIn}
+                        alt="Arrow down"
                         className="w-4 h-full"
                       ></Image>
                     </button>
@@ -728,12 +753,37 @@ export default function Home() {
                       </div>
                     </div>
                   </button>
+                  <button
+                    className={
+                      showJoystick == true
+                        ? "px-2 py-1 bg-white/20 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                        : "px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                    }
+                    onClick={() => setShowJoystick(!showJoystick)}
+                  >
+                    <Image
+                      src={JoystickIcon}
+                      alt="JoystickIcon"
+                      className="w-4 h-full"
+                    ></Image>
+                  </button>
                   {dots.length > 0 && (
                     <button
                       className="px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
                       onClick={() => setDots([])}
                     >
                       Clear points
+                    </button>
+                  )}
+                  {(translateX != 0 || translateY != 0) && (
+                    <button
+                      className="px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                      onClick={() => {
+                        setTranslateX(0);
+                        setTranslateY(0);
+                      }}
+                    >
+                      Recenter
                     </button>
                   )}
                 </div>
@@ -811,10 +861,24 @@ export default function Home() {
                   }
                   draggable="false"
                   onMouseMove={handleMouseMoveImage}
-                  style={{ filter: `contrast(${contrastValue}%)`, scale: zoom }}
+                  style={{
+                    filter: `contrast(${contrastValue}%)`,
+                    scale: zoom,
+                    transform: `translate(${translateX}px, ${translateY}px)`,
+                  }}
                   onMouseEnter={() => setImageIsHovered(true)}
                   onMouseLeave={() => setImageIsHovered(false)}
                 />
+                {showJoystick && (
+                  <div className="fixed bottom-16 left-0 right-0 mx-auto z-20 bg-white/20 border border-white/20 rounded-full w-fit backdrop-blur-lg">
+                    <Joystick
+                      size={100}
+                      baseColor="transparent"
+                      stickColor="white"
+                      move={handleMove}
+                    ></Joystick>
+                  </div>
+                )}
                 {dots.map((dot, index) => (
                   <div
                     key={index}
