@@ -78,6 +78,8 @@ export default function Home() {
   const [xScale, setXScale] = useState(0);
   const [yScale, setYScale] = useState(0);
   const [imageIsHovered, setImageIsHovered] = useState(false);
+  const [joystickX, setJoystickX] = useState(0);
+  const [joystickY, setJoystickY] = useState(0);
 
   const handleClearValues = async () => {
     setImageFileName("");
@@ -269,7 +271,13 @@ export default function Home() {
   };
 
   const handleMouseMove = (event: any) => {
-    if (isDragging && startYRef.current !== null) {
+    if (
+      isDragging &&
+      startYRef.current !== null &&
+      joystickX == 0 &&
+      joystickY == 0 &&
+      cursor == "cursor"
+    ) {
       const deltaY = event.clientY - startYRef.current;
 
       if (deltaY < -0.1) {
@@ -388,9 +396,6 @@ export default function Home() {
   const [translateX, setTranslateX] = useState(0);
   const [translateY, setTranslateY] = useState(0);
 
-  const [joystickX, setJoystickX] = useState(0);
-  const [joystickY, setJoystickY] = useState(0);
-
   const handleMove = (event: any) => {
     if (event.x !== null && event.y !== null) {
       setJoystickX(event.x);
@@ -475,10 +480,9 @@ export default function Home() {
               className="mt-4 pt-4 absolute left-4 right-4 top-16 bottom-4 flex flex-col border-t border-white/20"
             >
               <div className="">
-                <h1>Upload your DICOM directory here:</h1>
+                <h1>Upload your DICOM file(s) here:</h1>
                 <p className="mt-2">
-                  The file must be a directory containing only one or more files
-                  in{" "}
+                  The upload must be one or more files in{" "}
                   <span className="px-2 py-1 font-normal bg-white/10 rounded-md border border-white/20">
                     .DCM
                   </span>{" "}
@@ -492,7 +496,7 @@ export default function Home() {
                 className={
                   draggedOver
                     ? "bg-white/20 duration-100 px-4 py-16 rounded-md border border-dashed border-white/20 mt-4 flex flex-col justify-center items-center text-center cursor-pointer flex-1"
-                    : "bg-white/10 hover:bg-white/20 duration-100 px-4 py-16 rounded-md border border-dashed border-white/20 mt-4 flex flex-col justify-center items-center text-center cursor-pointer flex-1"
+                    : "bg-white/10 duration-100 px-4 py-16 rounded-md border border-dashed border-white/20 mt-4 flex flex-col justify-center items-center text-center cursor-pointer flex-1"
                 }
                 htmlFor="fileInput"
                 onDragOver={handleDragOver}
@@ -515,8 +519,7 @@ export default function Home() {
                       <h2 className="">Click to upload</h2> or drag and drop
                     </div>
                     <p className="text-white/60">
-                      Supports: A directory only containing one or more .DCM
-                      files
+                      Supports: An upload only containing one or more .DCM files
                     </p>
                   </div>
                 )}
@@ -775,12 +778,13 @@ export default function Home() {
                       Clear points
                     </button>
                   )}
-                  {(translateX != 0 || translateY != 0) && (
+                  {(translateX != 0 || translateY != 0 || zoom != 1) && (
                     <button
                       className="px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
                       onClick={() => {
                         setTranslateX(0);
                         setTranslateY(0);
+                        setZoom(1);
                       }}
                     >
                       Recenter
@@ -876,6 +880,10 @@ export default function Home() {
                       baseColor="transparent"
                       stickColor="white"
                       move={handleMove}
+                      stop={() => {
+                        setJoystickX(0);
+                        setJoystickY(0);
+                      }}
                     ></Joystick>
                   </div>
                 )}
@@ -913,7 +921,7 @@ export default function Home() {
                             className="relative text-[#0000ff]"
                             style={{ top: midY, left: midX }}
                           >
-                            <p>{distance} mm</p>
+                            <p>{distance}mm</p>
                           </div>
                         );
                       }
@@ -921,13 +929,14 @@ export default function Home() {
                     })}
                   </div>
                 )}
-                <div className="fixed right-4 bottom-4 flex gap-2">
+                <div className="absolute right-4 bottom-4 flex gap-2">
                   <div className="">
                     X:{" "}
                     {(
                       xCoordinate *
                       Number(imageUrls[imageUrlIndex].pixelSpacing[1])
                     ).toFixed(2)}
+                    mm
                   </div>
                   <div className="">
                     Y:{" "}
@@ -935,14 +944,15 @@ export default function Home() {
                       yCoordinate *
                       Number(imageUrls[imageUrlIndex].pixelSpacing[0])
                     ).toFixed(2)}
+                    mm
                   </div>
                 </div>
                 <div className="absolute left-4 bottom-4 flex gap-2">
                   <div className="">
-                    W: {Number(imageUrls[imageUrlIndex].widthMM).toFixed(2)}
+                    W: {Number(imageUrls[imageUrlIndex].widthMM).toFixed(2)}mm
                   </div>
                   <div className="">
-                    H: {Number(imageUrls[imageUrlIndex].heightMM).toFixed(2)}
+                    H: {Number(imageUrls[imageUrlIndex].heightMM).toFixed(2)}mm
                   </div>
                 </div>
                 <div className="absolute left-4 my-auto">
