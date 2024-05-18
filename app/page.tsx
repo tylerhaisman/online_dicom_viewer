@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
 import Arrow from "../public/icons/arrow.svg";
 import Github from "../public/icons/github-svgrepo-com.svg";
@@ -15,15 +16,16 @@ import Crosshair from "../public/icons/crosshair-simple-svgrepo-com.svg";
 import ZoomIn from "../public/icons/zoom-in-1462-svgrepo-com.svg";
 import ZoomOut from "../public/icons/zoom-out-1460-svgrepo-com.svg";
 import JoystickIcon from "../public/icons/joystick-svgrepo-com.svg";
+import cornerstoneDICOMImageLoader from "@cornerstonejs/dicom-image-loader";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, lazy } from "react";
 import { toast, Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import dicomParser from "dicom-parser";
 import * as cornerstone from "cornerstone-core";
+import * as cornerstoneTools from "cornerstone-tools";
 import * as cornerstoneWADOImageLoader from "cornerstone-wado-image-loader";
-import { initializeCornerstone } from "./cornerstone_init";
 import { useLongPress } from "use-long-press";
 import { Joystick } from "react-joystick-component";
 
@@ -53,9 +55,15 @@ interface DotInterface {
 }
 
 export default function Home() {
-  initializeCornerstone();
-  cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+  // initializeCornerstone();
   const router = useRouter();
+
+  useEffect(() => {
+    cornerstoneTools.external.cornerstone = cornerstone;
+    cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+    cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+    cornerstoneWADOImageLoader.configure();
+  }, []);
 
   const [preview, setPreview] = useState("");
   const [draggedOver, setDraggedOver] = useState(false);
@@ -169,10 +177,14 @@ export default function Home() {
       }
     };
 
-    window.addEventListener("wheel", handleWheel);
+    if (typeof window !== "undefined") {
+      window.addEventListener("wheel", handleWheel);
+    }
 
     return () => {
-      window.removeEventListener("wheel", handleWheel);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("wheel", handleWheel);
+      }
     };
   }, [canScroll, imageUrls, imageUrlIndex]);
 

@@ -240,21 +240,47 @@
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjpeg/-/codec-openjpeg-1.2.3.tgz#52bd61e7fe6fbe19f5997c8c7fddc3cd0e2072e8"
   integrity sha512-zAWv+O/7LpfHUJDKXwwo7z+l1E1rQQZYePiROv0PFhlMvMTs6RBa+n3r7fbph0aJtd9iUPfX9QKpokiMzr0mdw==
 
-"@cornerstonejs/codec-openjph@^2.4.2":
+"@cornerstonejs/codec-openjph@^2.4.2", "@cornerstonejs/codec-openjph@^2.4.5":
   version "2.4.5"
   resolved "https://registry.yarnpkg.com/@cornerstonejs/codec-openjph/-/codec-openjph-2.4.5.tgz#8690b61a86fa53ef38a70eee9d665a79229517c0"
   integrity sha512-MZCUy8VG0VG5Nl1l58+g+kH3LujAzLYTfJqkwpWI2gjSrGXnP6lgwyy4GmPRZWVoS40/B1LDNALK905cNWm+sg==
 
-"@cornerstonejs/core@^1.73.0":
-  version "1.73.0"
-  resolved "https://registry.yarnpkg.com/@cornerstonejs/core/-/core-1.73.0.tgz#db645fbbb27c82ff28f183f643562488f865da27"
-  integrity sha512-Su1usJLTqZgQ5pXGRzmnATW+0wXyJF89laAdkU7pUBCrfIzfNFwM90fHBnhk9H/sZFhY+B/70lytvM2TvYtqAw==
+"@cornerstonejs/core@^1.74.1":
+  version "1.74.1"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/core/-/core-1.74.1.tgz#67bf633bae8fc13f595bb360cdbe8ed17621fe89"
+  integrity sha512-prp6d5oRq1hvMYRTgIeBXCA/7iINuGvvf5vSPCmYZ7rh+IfX7/9c4y7Na4HWFgbUV/hdNuBXKe0t33o3aPARqQ==
   dependencies:
     "@kitware/vtk.js" "30.4.1"
     comlink "^4.4.1"
     detect-gpu "^5.0.22"
     gl-matrix "^3.4.3"
     lodash.clonedeep "4.5.0"
+
+"@cornerstonejs/dicom-image-loader@^1.74.1":
+  version "1.74.1"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/dicom-image-loader/-/dicom-image-loader-1.74.1.tgz#8526744a624f36b44f6611406a696697a7cf1045"
+  integrity sha512-n82IO+wpZzYrkokju1Cgp1xBj7uYV8lrRI1xAg7JTHWUj/7ziZyVHX0rgtfCD+pAddRaHM5t6x18jT+toWY2uQ==
+  dependencies:
+    "@cornerstonejs/codec-charls" "^1.2.3"
+    "@cornerstonejs/codec-libjpeg-turbo-8bit" "^1.2.2"
+    "@cornerstonejs/codec-openjpeg" "^1.2.2"
+    "@cornerstonejs/codec-openjph" "^2.4.5"
+    "@cornerstonejs/core" "^1.74.1"
+    dicom-parser "^1.8.9"
+    pako "^2.0.4"
+    uuid "^9.0.0"
+
+"@cornerstonejs/tools@^1.74.1":
+  version "1.74.1"
+  resolved "https://registry.yarnpkg.com/@cornerstonejs/tools/-/tools-1.74.1.tgz#1d88e54da07499fb09cd9acf71e27e96099da7fb"
+  integrity sha512-12p3PO9d94SQ5tJrUBXdOKHbfs89FSuuIkieDiEC4u4HX5kgbkb8Tv0CHkKAJH0SUoqSjO/VX3ZJwNfFl50+Cw==
+  dependencies:
+    "@cornerstonejs/core" "^1.74.1"
+    "@icr/polyseg-wasm" "0.4.0"
+    "@types/offscreencanvas" "2019.7.3"
+    comlink "^4.4.1"
+    lodash.clonedeep "4.5.0"
+    lodash.get "^4.4.2"
 
 "@eslint-community/eslint-utils@^4.2.0":
   version "4.4.0"
@@ -306,6 +332,11 @@
   version "2.0.3"
   resolved "https://registry.yarnpkg.com/@humanwhocodes/object-schema/-/object-schema-2.0.3.tgz#4a2868d75d6d6963e423bcf90b7fd1be343409d3"
   integrity sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==
+
+"@icr/polyseg-wasm@0.4.0":
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/@icr/polyseg-wasm/-/polyseg-wasm-0.4.0.tgz#755e23d07c3d8d8fca1113278c803c1ef0185da0"
+  integrity sha512-3sZmiwG8I0NaqPle0L7+V/ZexiR7IjIUFkUsaOoFI9rNuBGyyMMmxAxnCmqcDFtBDk9h+JEYJf6e3NnqlHi/HQ==
 
 "@isaacs/cliui@^8.0.2":
   version "8.0.2"
@@ -552,6 +583,11 @@
   version "17.0.45"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-17.0.45.tgz#2c0fafd78705e7a18b7906b5201a522719dc5190"
   integrity sha512-w+tIMs3rq2afQdsPJlODhoUEKzFP1ayaoyl1CcnwtIlsVe7K7bA1NGm4s3PraqTLlXnbIN84zuBlxBWo1u9BLw==
+
+"@types/offscreencanvas@2019.7.3":
+  version "2019.7.3"
+  resolved "https://registry.yarnpkg.com/@types/offscreencanvas/-/offscreencanvas-2019.7.3.tgz#90267db13f64d6e9ccb5ae3eac92786a7c77a516"
+  integrity sha512-ieXiYmgSRXUDeOntE1InxjWyvEelZGP63M+cGuquuRLuIKKT1osnkXjxev9B7d1nXSug5vpunx+gNlbVxMlC9A==
 
 "@types/parse-json@^4.0.0":
   version "4.0.2"
@@ -2721,6 +2757,11 @@ lodash.clonedeep@4.5.0:
   version "4.5.0"
   resolved "https://registry.yarnpkg.com/lodash.clonedeep/-/lodash.clonedeep-4.5.0.tgz#e23f3f9c4f8fbdde872529c1071857a086e5ccef"
   integrity sha512-H5ZhCF25riFd9uB5UCkVKo61m3S/xZk1x4wA6yp/L3RFP6Z/eHH1ymQcGLo7J3GMPfm0V/7m1tryHuGVxpqEBQ==
+
+lodash.get@^4.4.2:
+  version "4.4.2"
+  resolved "https://registry.yarnpkg.com/lodash.get/-/lodash.get-4.4.2.tgz#2d177f652fa31e939b4438d5341499dfa3825e99"
+  integrity sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==
 
 lodash.merge@^4.6.2:
   version "4.6.2"
