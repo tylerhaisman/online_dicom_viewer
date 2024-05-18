@@ -42,6 +42,7 @@ interface ImageUrlsInterface {
   heightMM: Number;
   widthPX: Number;
   heightPX: Number;
+  orientation: string;
 }
 
 interface DotInterface {
@@ -178,36 +179,96 @@ export default function Home() {
   const convertDicomToImageUrl = async (
     file: File
   ): Promise<ImageUrlsInterface> => {
-    const fileUrl = URL.createObjectURL(file);
-    const image = await cornerstone.loadImage(`wadouri:${fileUrl}`);
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
+    try {
+      const fileUrl = URL.createObjectURL(file);
+      const image = await cornerstone.loadImage(`wadouri:${fileUrl}`);
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
 
-    if (context) {
-      canvas.width = image.width;
-      canvas.height = image.height;
-      cornerstone.renderToCanvas(canvas, image);
+      if (context) {
+        canvas.width = image.width;
+        canvas.height = image.height;
+        cornerstone.renderToCanvas(canvas, image);
 
-      const axialUrl = canvas.toDataURL("image/jpeg");
+        const axialUrl = canvas.toDataURL("image/jpeg");
 
-      const pixelSpacing = image.data.string("x00280030")
-        ? image.data.string("x00280030").split("\\").map(Number)
-        : [1, 1];
+        const pixelSpacing = image.data.string("x00280030")
+          ? image.data.string("x00280030").split("\\").map(Number)
+          : [1, 1];
 
-      const widthMM = image.width * pixelSpacing[1];
-      const heightMM = image.height * pixelSpacing[0];
+        const widthMM = image.width * pixelSpacing[1];
+        const heightMM = image.height * pixelSpacing[0];
 
-      return {
-        axialUrl,
-        pixelSpacing,
-        widthMM,
-        heightMM,
-        widthPX: image.width,
-        heightPX: image.height,
-      };
+        let orientation = "unknown";
+
+        if (image.data.string("x00200037") != undefined) {
+          const imageOrientationPatient = image.data
+            .string("x00200037")
+            .split("\\")
+            .map(Number);
+          orientation = determineOrientation(imageOrientationPatient);
+        }
+
+        return {
+          axialUrl,
+          pixelSpacing,
+          widthMM,
+          heightMM,
+          widthPX: image.width,
+          heightPX: image.height,
+          orientation,
+        };
+      }
+    } catch (error) {
+      toast.error("An error occured.");
+      handleClearValues();
+      setDicomLoading(false);
     }
-
     throw new Error("Failed to create canvas context");
+  };
+
+  const determineOrientation = (imageOrientationPatient: number[]): string => {
+    const rowCosines = imageOrientationPatient.slice(0, 3);
+    const colCosines = imageOrientationPatient.slice(3, 6);
+
+    const normalVector = [
+      rowCosines[1] * colCosines[2] - rowCosines[2] * colCosines[1],
+      rowCosines[2] * colCosines[0] - rowCosines[0] * colCosines[2],
+      rowCosines[0] * colCosines[1] - rowCosines[1] * colCosines[0],
+    ];
+
+    const length = Math.sqrt(
+      normalVector[0] ** 2 + normalVector[1] ** 2 + normalVector[2] ** 2
+    );
+    const normalizedNormal = normalVector.map((val) => val / length);
+
+    const axial = [0, 0, 1];
+    const sagittal = [1, 0, 0];
+    const coronal = [0, 1, 0];
+
+    const dotProduct = (vec1: number[], vec2: number[]): number => {
+      return vec1.reduce((acc, v, i) => acc + v * vec2[i], 0);
+    };
+
+    const orientationAxial = Math.abs(dotProduct(normalizedNormal, axial));
+    const orientationSagittal = Math.abs(
+      dotProduct(normalizedNormal, sagittal)
+    );
+    const orientationCoronal = Math.abs(dotProduct(normalizedNormal, coronal));
+
+    if (
+      orientationAxial > orientationSagittal &&
+      orientationAxial > orientationCoronal
+    ) {
+      return "axial";
+    } else if (
+      orientationSagittal > orientationAxial &&
+      orientationSagittal > orientationCoronal
+    ) {
+      return "sagittal";
+    } else {
+      return "coronal";
+    }
   };
 
   const incrementIndex = useCallback(() => {
@@ -422,10 +483,12 @@ export default function Home() {
             <button
               className="bg-white/10 border border-white/20 shadow-sm p-2 rounded-md flex gap-2 justify-center items-center"
               onClick={() => {
-                window.open(
-                  "https://github.com/tylerhaisman/online_dicom_viewer",
-                  "_blank"
-                );
+                if (typeof window !== "undefined") {
+                  window.open(
+                    "https://github.com/tylerhaisman/online_dicom_viewer",
+                    "_blank"
+                  );
+                }
               }}
             >
               <Image src={Github} alt="Github" className="w-4 h-4"></Image>
@@ -632,7 +695,7 @@ export default function Home() {
               transition={{ duration: 0.5, delay: 0, ease: "backOut" }}
               className="pt-4 absolute left-4 right-4 top-16 bottom-4 flex flex-col"
             >
-              <motion.div className="mb-4 flex gap-2 justify-between items-center font-mono">
+              <motion.div className="mb-4 flex gap-2 justify-between items-center font-mono uppercase">
                 <div className="flex gap-2">
                   <button
                     className={
@@ -744,7 +807,7 @@ export default function Home() {
                       className="px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
                       onClick={() => setDots([])}
                     >
-                      Clear points
+                      CLEAR POINTS
                     </button>
                   )}
                   {(translateX != 0 || translateY != 0 || zoom != 1) && (
@@ -754,9 +817,10 @@ export default function Home() {
                         setTranslateX(0);
                         setTranslateY(0);
                         setZoom(1);
+                        setDots([]);
                       }}
                     >
-                      Recenter
+                      RECENTER
                     </button>
                   )}
                 </div>
@@ -804,7 +868,7 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2, ease: "backOut" }}
                 className={
-                  "bg-black duration-100 rounded-md border border-dashed border-white/20 text-center flex justify-center items-center flex-1 relative overflow-hidden active:cursor-ns-resize text-red-500 text-xs font-mono"
+                  "bg-black duration-100 rounded-md border border-dashed border-white/20 text-center flex justify-center items-center flex-1 relative overflow-hidden active:cursor-ns-resize text-red-500 text-xs font-mono uppercase"
                 }
                 onClick={(e) => {
                   if (cursor == "crosshair" && imageIsHovered) {
@@ -842,20 +906,32 @@ export default function Home() {
                   onMouseEnter={() => setImageIsHovered(true)}
                   onMouseLeave={() => setImageIsHovered(false)}
                 />
-                {showJoystick && (
-                  <div className="fixed bottom-16 left-0 right-0 mx-auto z-20 bg-white/20 border border-white/20 rounded-full w-fit backdrop-blur-lg">
-                    <Joystick
-                      size={100}
-                      baseColor="transparent"
-                      stickColor="white"
-                      move={handleMove}
-                      stop={() => {
-                        setJoystickX(0);
-                        setJoystickY(0);
+                <AnimatePresence>
+                  {showJoystick && (
+                    <motion.div
+                      className="fixed bottom-16 left-0 right-0 mx-auto z-20 bg-white/20 border border-white/20 rounded-full w-fit backdrop-blur-lg"
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: 0.2,
+                        delay: 0,
+                        ease: "backOut",
                       }}
-                    ></Joystick>
-                  </div>
-                )}
+                      exit={{ opacity: 0, y: 30 }}
+                    >
+                      <Joystick
+                        size={100}
+                        baseColor="transparent"
+                        stickColor="white"
+                        move={handleMove}
+                        stop={() => {
+                          setJoystickX(0);
+                          setJoystickY(0);
+                        }}
+                      ></Joystick>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 {dots.map((dot, index) => (
                   <div
                     key={index}
@@ -891,7 +967,7 @@ export default function Home() {
                             style={{ top: midY, left: midX }}
                             key={index}
                           >
-                            <p>{distance}mm</p>
+                            <p>{distance} mm</p>
                           </div>
                         );
                       }
@@ -905,7 +981,7 @@ export default function Home() {
                     {(
                       xCoordinate *
                       Number(imageUrls[imageUrlIndex].pixelSpacing[1])
-                    ).toFixed(2)}
+                    ).toFixed(2)}{" "}
                     mm
                   </div>
                   <div className="">
@@ -913,30 +989,82 @@ export default function Home() {
                     {(
                       yCoordinate *
                       Number(imageUrls[imageUrlIndex].pixelSpacing[0])
-                    ).toFixed(2)}
+                    ).toFixed(2)}{" "}
                     mm
                   </div>
                 </div>
                 <div className="absolute left-4 bottom-4 flex gap-2">
                   <div className="">
-                    W: {Number(imageUrls[imageUrlIndex].widthMM).toFixed(2)}mm
+                    W: {Number(imageUrls[imageUrlIndex].widthMM).toFixed(2)} mm
                   </div>
                   <div className="">
-                    H: {Number(imageUrls[imageUrlIndex].heightMM).toFixed(2)}mm
+                    H: {Number(imageUrls[imageUrlIndex].heightMM).toFixed(2)} mm
                   </div>
                 </div>
-                <div className="absolute left-4 my-auto">
-                  <div className="">R</div>
-                </div>
-                <div className="absolute right-4 my-auto">
-                  <div className="">L</div>
-                </div>
-                <div className="absolute top-4 mx-auto">
-                  <div className="">A</div>
-                </div>
-                <div className="absolute bottom-4 mx-auto">
-                  <div className="">P</div>
-                </div>
+                {imageUrls[imageUrlIndex].orientation == "axial" && (
+                  <>
+                    <div className="absolute left-4 top-4">
+                      <div className="">Axial</div>
+                    </div>
+                    <div className="absolute left-4 top-1/2">
+                      <div className="">R</div>
+                    </div>
+                    <div className="absolute right-4 top-1/2">
+                      <div className="">L</div>
+                    </div>
+                    <div className="absolute top-4 left-1/2">
+                      <div className="">A</div>
+                    </div>
+                    <div className="absolute bottom-4 left-1/2">
+                      <div className="">P</div>
+                    </div>
+                  </>
+                )}
+                {imageUrls[imageUrlIndex].orientation == "sagittal" && (
+                  <>
+                    <div className="absolute left-4 top-4">
+                      <div className="">Sagittal</div>
+                    </div>
+                    <div className="absolute left-4 top-1/2">
+                      <div className="">A</div>
+                    </div>
+                    <div className="absolute right-4 top-1/2">
+                      <div className="">P</div>
+                    </div>
+                    <div className="absolute top-4 left-1/2">
+                      <div className="">S</div>
+                    </div>
+                    <div className="absolute bottom-4 left-1/2">
+                      <div className="">I</div>
+                    </div>
+                  </>
+                )}
+                {imageUrls[imageUrlIndex].orientation == "coronal" && (
+                  <>
+                    <div className="absolute left-4 top-4">
+                      <div className="">Coronal</div>
+                    </div>
+                    <div className="absolute left-4 top-1/2">
+                      <div className="">R</div>
+                    </div>
+                    <div className="absolute right-4 top-1/2">
+                      <div className="">L</div>
+                    </div>
+                    <div className="absolute top-4 left-1/2">
+                      <div className="">S</div>
+                    </div>
+                    <div className="absolute bottom-4 left-1/2">
+                      <div className="">I</div>
+                    </div>
+                  </>
+                )}
+                {imageUrls[imageUrlIndex].orientation == "unknown" && (
+                  <>
+                    <div className="absolute left-4 top-4">
+                      <div className="">Unspecified orientation</div>
+                    </div>
+                  </>
+                )}
               </motion.div>
             </motion.div>
           )}
