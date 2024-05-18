@@ -558,7 +558,7 @@ export default function Home() {
                       <h2 className="">DICOM files uploaded.</h2>
                     </div>
                     <p className="text-white/60">
-                      Press the "View DICOM Images" button to continue.
+                      {'Press the "View DICOM Images" button to continue.'}
                     </p>
                   </div>
                 )}
@@ -889,6 +889,7 @@ export default function Home() {
                           <div
                             className="relative text-[#0000ff]"
                             style={{ top: midY, left: midX }}
+                            key={index}
                           >
                             <p>{distance}mm</p>
                           </div>
