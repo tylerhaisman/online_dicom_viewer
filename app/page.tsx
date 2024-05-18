@@ -2,14 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
+
 import Arrow from "../public/icons/arrow.svg";
 import Github from "../public/icons/github-svgrepo-com.svg";
 import Info from "../public/icons/info-circle-svgrepo-com.svg";
 import ImageIcon from "../public/icons/upload-minimalistic-svgrepo-com (1).svg";
 import Check from "../public/icons/check-circle-svgrepo-com (1).svg";
-import Start from "../public/icons/start-favorite-svgrepo-com.svg";
-import Lungs from "../public/icons/lungs-lung-svgrepo-com.svg";
-import Plus from "../public/icons/plus-large-svgrepo-com (1).svg";
 import Donut from "../public/icons/circle-dashed-svgrepo-com.svg";
 import Contrast from "../public/icons/contrast-908-svgrepo-com.svg";
 import Cursor from "../public/icons/cursor-svgrepo-com.svg";
@@ -29,16 +27,13 @@ import { initializeCornerstone } from "./cornerstone_init";
 import { useLongPress } from "use-long-press";
 import { Joystick } from "react-joystick-component";
 
-initializeCornerstone();
-
-//so i can accept directories
-declare module "react" {
-  interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
-    directory?: string;
-    webkitdirectory?: string;
-    mozdirectory?: string;
-  }
-}
+// declare module "react" {
+//   interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
+//     directory?: string;
+//     webkitdirectory?: string;
+//     mozdirectory?: string;
+//   }
+// }
 
 interface ImageUrlsInterface {
   axialUrl: string;
@@ -57,15 +52,14 @@ interface DotInterface {
 }
 
 export default function Home() {
+  initializeCornerstone();
+  cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
   const router = useRouter();
-  const [imageData, setImageData] = useState<FormData | null>(null);
-  const [imageFileName, setImageFileName] = useState("");
+
   const [preview, setPreview] = useState("");
   const [draggedOver, setDraggedOver] = useState(false);
   const [showInfoMenu, setShowInfoMenu] = useState(false);
   const [dicomImages, setDicomImages] = useState<any[]>([]);
-  cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
-  const canvasRefs = useRef<HTMLDivElement[]>([]);
   const [imageUrls, setImageUrls] = useState<ImageUrlsInterface[]>([]);
   const [imageUrlIndex, setImageUrlIndex] = useState(0);
   const [ready, setReady] = useState(false);
@@ -80,9 +74,19 @@ export default function Home() {
   const [imageIsHovered, setImageIsHovered] = useState(false);
   const [joystickX, setJoystickX] = useState(0);
   const [joystickY, setJoystickY] = useState(0);
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+  const [dots, setDots] = useState<Array<DotInterface>>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [showJoystick, setShowJoystick] = useState(false);
+  const [xCoordinate, setXCoordinate] = useState(0);
+  const [yCoordinate, setYCoordinate] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startYRef = useRef(null);
+  const [longPressInterval, setLongPressInterval] =
+    useState<NodeJS.Timeout | null>(null);
 
   const handleClearValues = async () => {
-    setImageFileName("");
     setPreview("");
     setDraggedOver(false);
     setImageUrls([]);
@@ -135,7 +139,6 @@ export default function Home() {
       setImageUrls(urls);
       setPreview(urls[0].axialUrl);
       setReady(true);
-      setImageFileName("");
       setDicomLoading(false);
     };
 
@@ -185,10 +188,8 @@ export default function Home() {
       canvas.height = image.height;
       cornerstone.renderToCanvas(canvas, image);
 
-      // Convert the canvas to a data URL (base64 string)
       const axialUrl = canvas.toDataURL("image/jpeg");
 
-      // Extract pixel spacing
       const pixelSpacing = image.data.string("x00280030")
         ? image.data.string("x00280030").split("\\").map(Number)
         : [1, 1];
@@ -208,9 +209,6 @@ export default function Home() {
 
     throw new Error("Failed to create canvas context");
   };
-
-  const [longPressInterval, setLongPressInterval] =
-    useState<NodeJS.Timeout | null>(null);
 
   const incrementIndex = useCallback(() => {
     setImageUrlIndex((prevIndex) =>
@@ -262,9 +260,6 @@ export default function Home() {
     threshold: 100,
   });
 
-  const [isDragging, setIsDragging] = useState(false);
-  const startYRef = useRef(null);
-
   const handleMouseDown = (event: any) => {
     setIsDragging(true);
     startYRef.current = event.clientY;
@@ -281,15 +276,13 @@ export default function Home() {
       const deltaY = event.clientY - startYRef.current;
 
       if (deltaY < -0.1) {
-        // Threshold for detecting upward drag
         setImageUrlIndex((prevIndex) =>
           Math.min(prevIndex + 1, imageUrls.length - 1)
         );
-        startYRef.current = event.clientY; // Reset startY to the current position
+        startYRef.current = event.clientY;
       } else if (deltaY > 0.1) {
-        // Threshold for detecting downward drag
         setImageUrlIndex((prevIndex) => Math.max(prevIndex - 1, 0));
-        startYRef.current = event.clientY; // Reset startY to the current position
+        startYRef.current = event.clientY;
       }
     }
   };
@@ -298,15 +291,6 @@ export default function Home() {
     setIsDragging(false);
     startYRef.current = null;
   };
-
-  const [xCoordinate, setXCoordinate] = useState(0);
-  const [yCoordinate, setYCoordinate] = useState(0);
-
-  const [xCoordinatePX, setXCoordinatePX] = useState(0);
-  const [yCoordinatePX, setYCoordinatePX] = useState(0);
-
-  const [imageTrueWidth, setImageTrueWidth] = useState(0);
-  const [imageTrueHeight, setImageTrueHeight] = useState(0);
 
   const handleMouseMoveImage = (
     event: React.MouseEvent<HTMLDivElement, MouseEvent>
@@ -318,9 +302,6 @@ export default function Home() {
 
     const displayedWidth = rect.width;
     const displayedHeight = rect.height;
-
-    setImageTrueWidth(displayedWidth);
-    setImageTrueHeight(displayedHeight);
 
     const scaleX = actualWidth / displayedWidth;
     const scaleY = actualHeight / displayedHeight;
@@ -349,13 +330,7 @@ export default function Home() {
 
     setXCoordinate(x);
     setYCoordinate(y);
-    setXCoordinatePX(mouseX);
-    setYCoordinatePX(mouseY);
   };
-
-  const [dots, setDots] = useState<Array<DotInterface>>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [showJoystick, setShowJoystick] = useState(false);
 
   const handleImageClick = (event: any) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -369,11 +344,9 @@ export default function Home() {
     };
 
     if (!isDrawing) {
-      // Start drawing
       setIsDrawing(true);
       setDots([newDot]);
     } else {
-      // End drawing and connect the dots
       setIsDrawing(false);
       setDots((prevDots) => [...prevDots, newDot]);
     }
@@ -392,9 +365,6 @@ export default function Home() {
     const deltaY2 = deltaY * deltaY;
     return Math.sqrt(deltaX2 + deltaY2);
   };
-
-  const [translateX, setTranslateX] = useState(0);
-  const [translateY, setTranslateY] = useState(0);
 
   const handleMove = (event: any) => {
     if (event.x !== null && event.y !== null) {
@@ -470,7 +440,6 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {/* <hr className="h-0 border-t border-white/20" /> */}
         <AnimatePresence>
           {!showImages && (
             <motion.div
@@ -600,10 +569,10 @@ export default function Home() {
                 onChange={handleFileChange}
                 id="fileInput"
                 className="hidden"
+                multiple
                 // directory=""
                 // webkitdirectory=""
                 // mozdirectory=""
-                multiple
               />
 
               {ready == true && (
