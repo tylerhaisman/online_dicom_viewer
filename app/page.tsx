@@ -14,6 +14,7 @@ import Donut from "../public/icons/circle-dashed-svgrepo-com.svg";
 import Contrast from "../public/icons/contrast-908-svgrepo-com.svg";
 import Cursor from "../public/icons/cursor-svgrepo-com.svg";
 import Crosshair from "../public/icons/crosshair-simple-svgrepo-com.svg";
+import Grabbing from "../public/icons/hand-grabbing-fill-svgrepo-com.svg";
 import ZoomIn from "../public/icons/zoom-in-1462-svgrepo-com.svg";
 import ZoomOut from "../public/icons/zoom-out-1460-svgrepo-com.svg";
 import { useRouter } from "next/navigation";
@@ -46,6 +47,13 @@ interface ImageUrlsInterface {
   heightPX: Number;
 }
 
+interface DotInterface {
+  x: number;
+  y: number;
+  xMM: number;
+  yMM: number;
+}
+
 export default function Home() {
   const router = useRouter();
   const [imageData, setImageData] = useState<FormData | null>(null);
@@ -65,6 +73,9 @@ export default function Home() {
   const [contrastValue, setContrastValue] = useState(100);
   const [cursor, setCursor] = useState("cursor");
   const [zoom, setZoom] = useState(1);
+  const [xScale, setXScale] = useState(0);
+  const [yScale, setYScale] = useState(0);
+  const [imageIsHovered, setImageIsHovered] = useState(false);
 
   const handleClearValues = async () => {
     setImageFileName("");
@@ -250,9 +261,22 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const startYRef = useRef(null);
 
+  const [isMoving, setIsMoving] = useState(false);
+
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+
+  const [startX, setStartX] = useState(0);
+  const [startY, setStartY] = useState(0);
+
   const handleMouseDown = (event: any) => {
     setIsDragging(true);
     startYRef.current = event.clientY;
+    if (cursor == "grabbing") {
+      setIsMoving(true);
+      setStartX(xCoordinatePX);
+      setStartY(yCoordinatePX);
+    }
   };
 
   const handleMouseMove = (event: any) => {
@@ -270,16 +294,26 @@ export default function Home() {
         setImageUrlIndex((prevIndex) => Math.max(prevIndex - 1, 0));
         startYRef.current = event.clientY; // Reset startY to the current position
       }
+    } else if (isMoving) {
+      setTranslateX(event.clientX - startX);
+      setTranslateY(event.clientY - startY);
     }
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
     startYRef.current = null;
+    setIsMoving(false);
   };
 
   const [xCoordinate, setXCoordinate] = useState(0);
   const [yCoordinate, setYCoordinate] = useState(0);
+
+  const [xCoordinatePX, setXCoordinatePX] = useState(0);
+  const [yCoordinatePX, setYCoordinatePX] = useState(0);
+
+  const [imageTrueWidth, setImageTrueWidth] = useState(0);
+  const [imageTrueHeight, setImageTrueHeight] = useState(0);
 
   const handleMouseMoveImage = (
     event: React.MouseEvent<HTMLDivElement, MouseEvent>
@@ -292,8 +326,14 @@ export default function Home() {
     const displayedWidth = rect.width;
     const displayedHeight = rect.height;
 
+    setImageTrueWidth(displayedWidth);
+    setImageTrueHeight(displayedHeight);
+
     const scaleX = actualWidth / displayedWidth;
     const scaleY = actualHeight / displayedHeight;
+
+    setXScale(scaleX);
+    setYScale(scaleY);
 
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
@@ -316,6 +356,47 @@ export default function Home() {
 
     setXCoordinate(x);
     setYCoordinate(y);
+    setXCoordinatePX(mouseX);
+    setYCoordinatePX(mouseY);
+  };
+
+  const [dots, setDots] = useState<Array<DotInterface>>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  const handleImageClick = (event: any) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const newDot = {
+      x,
+      y,
+      xMM: xCoordinate * Number(imageUrls[imageUrlIndex].pixelSpacing[1]),
+      yMM: yCoordinate * Number(imageUrls[imageUrlIndex].pixelSpacing[0]),
+    };
+
+    if (!isDrawing) {
+      // Start drawing
+      setIsDrawing(true);
+      setDots([newDot]);
+    } else {
+      // End drawing and connect the dots
+      setIsDrawing(false);
+      setDots((prevDots) => [...prevDots, newDot]);
+    }
+  };
+
+  const calculateDistance = (dot1: DotInterface, dot2: DotInterface) => {
+    const deltaX =
+      (dot2.x - dot1.x) *
+      xScale *
+      Number(imageUrls[imageUrlIndex].pixelSpacing[1]);
+    const deltaX2 = deltaX * deltaX;
+    const deltaY =
+      (dot2.y - dot1.y) *
+      yScale *
+      Number(imageUrls[imageUrlIndex].pixelSpacing[0]);
+    const deltaY2 = deltaY * deltaY;
+    return Math.sqrt(deltaX2 + deltaY2);
   };
 
   return (
@@ -589,6 +670,22 @@ export default function Home() {
                   </button>
                   <button
                     className={
+                      cursor == "grabbing"
+                        ? "px-2 py-1 bg-white/20 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                        : "px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                    }
+                    onClick={() => {
+                      setCursor("grabbing");
+                    }}
+                  >
+                    <Image
+                      src={Grabbing}
+                      alt="Grabbing"
+                      className="w-4 h-full"
+                    ></Image>
+                  </button>
+                  <button
+                    className={
                       cursor == "crosshair"
                         ? "px-2 py-1 bg-white/20 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
                         : "px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
@@ -604,7 +701,10 @@ export default function Home() {
                   <div className="bg-white/10 border-white/20 border rounded-md flex items-center cursor-pointer h-10 justify-center">
                     <button
                       className=" hover:bg-white/10 p-2 h-full"
-                      onClick={() => setZoom(zoom * 1.2)}
+                      onClick={() => {
+                        setZoom(zoom * 1.2);
+                        setDots([]);
+                      }}
                     >
                       <Image
                         src={ZoomIn}
@@ -615,7 +715,10 @@ export default function Home() {
                     <hr className="h-full w-0 border-r border-white/20" />
                     <button
                       className="hover:bg-white/10 p-2 h-full"
-                      onClick={() => setZoom(zoom / 1.2)}
+                      onClick={() => {
+                        setZoom(zoom / 1.2);
+                        setDots([]);
+                      }}
                     >
                       <Image
                         src={ZoomOut}
@@ -658,6 +761,14 @@ export default function Home() {
                       </div>
                     </div>
                   </button>
+                  {dots.length > 0 && (
+                    <button
+                      className="px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
+                      onClick={() => setDots([])}
+                    >
+                      Clear points
+                    </button>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <div className="px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex flex-col justify-center items-center">
@@ -703,8 +814,13 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2, ease: "backOut" }}
                 className={
-                  "bg-black duration-100 rounded-md border border-dashed border-white/20 text-center flex justify-center items-center flex-1 relative overflow-y-auto active:cursor-ns-resize text-red-500 text-xs font-mono"
+                  "bg-black duration-100 rounded-md border border-dashed border-white/20 text-center flex justify-center items-center flex-1 relative overflow-hidden active:cursor-ns-resize text-red-500 text-xs font-mono"
                 }
+                onClick={(e) => {
+                  if (cursor == "crosshair" && imageIsHovered) {
+                    handleImageClick(e);
+                  }
+                }}
                 onMouseEnter={() => {
                   console.log("Mouse entered image area");
                   setCanScroll(true);
@@ -728,10 +844,60 @@ export default function Home() {
                   }
                   draggable="false"
                   onMouseMove={handleMouseMoveImage}
-                  style={{ filter: `contrast(${contrastValue}%)`, scale: zoom }}
-                  // style={{scale: }}
+                  style={{
+                    filter: `contrast(${contrastValue}%)`,
+                    scale: zoom,
+                    transform: `translate(${translateX}px, ${translateY}px) scale(${zoom})`,
+                  }}
+                  onMouseEnter={() => setImageIsHovered(true)}
+                  onMouseLeave={() => {
+                    setImageIsHovered(false);
+                    setIsMoving(false);
+                  }}
                 />
-                <div className="absolute right-4 bottom-4 flex gap-2">
+                {dots.map((dot, index) => (
+                  <div
+                    key={index}
+                    className={`absolute bg-[#0000ff] text-white z-20 flex justify-center items-center w-4 h-4 rounded-full`}
+                    style={{
+                      top: dot.y - 8,
+                      left: dot.x - 8,
+                    }}
+                  >
+                    {index == 0 ? "A" : "B"}
+                  </div>
+                ))}
+                {dots.length > 1 && (
+                  <div style={{ position: "absolute", top: 0, left: 0 }}>
+                    {dots.map((dot, index) => {
+                      if (index < dots.length - 1) {
+                        const nextDot = dots[index + 1];
+                        const distance = calculateDistance(
+                          dot,
+                          nextDot
+                        ).toFixed(2);
+                        const midX = (dot.x + nextDot.x) / 2;
+                        const midY = (dot.y + nextDot.y) / 2;
+
+                        const dx = nextDot.x - dot.x;
+                        const dy = nextDot.y - dot.y;
+                        const radians = Math.atan2(dy, dx);
+                        const degrees = radians * (180 / Math.PI);
+
+                        return (
+                          <div
+                            className="relative text-[#0000ff]"
+                            style={{ top: midY, left: midX }}
+                          >
+                            <p>{distance} mm</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                )}
+                <div className="fixed right-4 bottom-4 flex gap-2">
                   <div className="">
                     X:{" "}
                     {(
