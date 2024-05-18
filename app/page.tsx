@@ -14,7 +14,6 @@ import Donut from "../public/icons/circle-dashed-svgrepo-com.svg";
 import Contrast from "../public/icons/contrast-908-svgrepo-com.svg";
 import Cursor from "../public/icons/cursor-svgrepo-com.svg";
 import Crosshair from "../public/icons/crosshair-simple-svgrepo-com.svg";
-import Grabbing from "../public/icons/hand-grabbing-fill-svgrepo-com.svg";
 import ZoomIn from "../public/icons/zoom-in-1462-svgrepo-com.svg";
 import ZoomOut from "../public/icons/zoom-out-1460-svgrepo-com.svg";
 import { useRouter } from "next/navigation";
@@ -26,6 +25,7 @@ import * as cornerstone from "cornerstone-core";
 import * as cornerstoneWADOImageLoader from "cornerstone-wado-image-loader";
 import { initializeCornerstone } from "./cornerstone_init";
 import { useLongPress } from "use-long-press";
+import { Joystick } from "react-joystick-component";
 
 initializeCornerstone();
 
@@ -261,22 +261,9 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const startYRef = useRef(null);
 
-  const [isMoving, setIsMoving] = useState(false);
-
-  const [translateX, setTranslateX] = useState(0);
-  const [translateY, setTranslateY] = useState(0);
-
-  const [startX, setStartX] = useState(0);
-  const [startY, setStartY] = useState(0);
-
   const handleMouseDown = (event: any) => {
     setIsDragging(true);
     startYRef.current = event.clientY;
-    if (cursor == "grabbing") {
-      setIsMoving(true);
-      setStartX(xCoordinatePX);
-      setStartY(yCoordinatePX);
-    }
   };
 
   const handleMouseMove = (event: any) => {
@@ -294,16 +281,12 @@ export default function Home() {
         setImageUrlIndex((prevIndex) => Math.max(prevIndex - 1, 0));
         startYRef.current = event.clientY; // Reset startY to the current position
       }
-    } else if (isMoving) {
-      setTranslateX(event.clientX - startX);
-      setTranslateY(event.clientY - startY);
     }
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
     startYRef.current = null;
-    setIsMoving(false);
   };
 
   const [xCoordinate, setXCoordinate] = useState(0);
@@ -670,22 +653,6 @@ export default function Home() {
                   </button>
                   <button
                     className={
-                      cursor == "grabbing"
-                        ? "px-2 py-1 bg-white/20 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
-                        : "px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
-                    }
-                    onClick={() => {
-                      setCursor("grabbing");
-                    }}
-                  >
-                    <Image
-                      src={Grabbing}
-                      alt="Grabbing"
-                      className="w-4 h-full"
-                    ></Image>
-                  </button>
-                  <button
-                    className={
                       cursor == "crosshair"
                         ? "px-2 py-1 bg-white/20 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
                         : "px-2 py-1 bg-white/10 border-white/20 border rounded-md h-10 flex justify-center items-center gap-2 hover:bg-white/20"
@@ -844,16 +811,9 @@ export default function Home() {
                   }
                   draggable="false"
                   onMouseMove={handleMouseMoveImage}
-                  style={{
-                    filter: `contrast(${contrastValue}%)`,
-                    scale: zoom,
-                    transform: `translate(${translateX}px, ${translateY}px) scale(${zoom})`,
-                  }}
+                  style={{ filter: `contrast(${contrastValue}%)`, scale: zoom }}
                   onMouseEnter={() => setImageIsHovered(true)}
-                  onMouseLeave={() => {
-                    setImageIsHovered(false);
-                    setIsMoving(false);
-                  }}
+                  onMouseLeave={() => setImageIsHovered(false)}
                 />
                 {dots.map((dot, index) => (
                   <div
