@@ -495,7 +495,10 @@ export default function Home() {
                 </p>
                 <hr className="border-white/20 bg-white/10" />
                 <p className="p-3 hover:bg-white/10 cursor-pointer">
-                  <Link href={"https://tylerhaisman.com"} target="_blank">
+                  <Link
+                    href={"https://tylerhaisman.com/online_dicom_viewer"}
+                    target="_blank"
+                  >
                     Project Docs
                   </Link>
                 </p>
