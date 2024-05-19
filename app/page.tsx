@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 
 import Arrow from "../public/icons/arrow.svg";
 import Github from "../public/icons/github-svgrepo-com.svg";
@@ -16,16 +15,12 @@ import Crosshair from "../public/icons/crosshair-simple-svgrepo-com.svg";
 import ZoomIn from "../public/icons/zoom-in-1462-svgrepo-com.svg";
 import ZoomOut from "../public/icons/zoom-out-1460-svgrepo-com.svg";
 import JoystickIcon from "../public/icons/joystick-svgrepo-com.svg";
-import cornerstoneDICOMImageLoader from "@cornerstonejs/dicom-image-loader";
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback, lazy } from "react";
 import { toast, Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import dicomParser from "dicom-parser";
-import * as cornerstone from "cornerstone-core";
-import * as cornerstoneTools from "cornerstone-tools";
-import * as cornerstoneWADOImageLoader from "cornerstone-wado-image-loader";
 import { useLongPress } from "use-long-press";
 import { Joystick } from "react-joystick-component";
 
@@ -55,16 +50,9 @@ interface DotInterface {
 }
 
 export default function Home() {
-  // initializeCornerstone();
   const router = useRouter();
 
-  useEffect(() => {
-    cornerstoneTools.external.cornerstone = cornerstone;
-    cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
-    cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
-    cornerstoneWADOImageLoader.configure();
-  }, []);
-
+  const [cornerstone, setCornerstone] = useState<any>(null);
   const [preview, setPreview] = useState("");
   const [draggedOver, setDraggedOver] = useState(false);
   const [showInfoMenu, setShowInfoMenu] = useState(false);
@@ -94,6 +82,25 @@ export default function Home() {
   const startYRef = useRef(null);
   const [longPressInterval, setLongPressInterval] =
     useState<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (async () => {
+        const cornerstone = await import("cornerstone-core");
+        const cornerstoneTools = await import("cornerstone-tools");
+        const cornerstoneWADOImageLoader = await import(
+          "cornerstone-wado-image-loader"
+        );
+
+        cornerstoneTools.external.cornerstone = cornerstone;
+        cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+        cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+        cornerstoneWADOImageLoader.configure();
+
+        setCornerstone(cornerstone);
+      })();
+    }
+  }, []);
 
   const handleClearValues = async () => {
     setPreview("");
@@ -192,44 +199,46 @@ export default function Home() {
     file: File
   ): Promise<ImageUrlsInterface> => {
     try {
-      const fileUrl = URL.createObjectURL(file);
-      const image = await cornerstone.loadImage(`wadouri:${fileUrl}`);
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d");
+      if (cornerstone) {
+        const fileUrl = URL.createObjectURL(file);
+        const image = await cornerstone.loadImage(`wadouri:${fileUrl}`);
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
 
-      if (context) {
-        canvas.width = image.width;
-        canvas.height = image.height;
-        cornerstone.renderToCanvas(canvas, image);
+        if (context) {
+          canvas.width = image.width;
+          canvas.height = image.height;
+          cornerstone.renderToCanvas(canvas, image);
 
-        const axialUrl = canvas.toDataURL("image/jpeg");
+          const axialUrl = canvas.toDataURL("image/jpeg");
 
-        const pixelSpacing = image.data.string("x00280030")
-          ? image.data.string("x00280030").split("\\").map(Number)
-          : [1, 1];
+          const pixelSpacing = image.data.string("x00280030")
+            ? image.data.string("x00280030").split("\\").map(Number)
+            : [1, 1];
 
-        const widthMM = image.width * pixelSpacing[1];
-        const heightMM = image.height * pixelSpacing[0];
+          const widthMM = image.width * pixelSpacing[1];
+          const heightMM = image.height * pixelSpacing[0];
 
-        let orientation = "unknown";
+          let orientation = "unknown";
 
-        if (image.data.string("x00200037") != undefined) {
-          const imageOrientationPatient = image.data
-            .string("x00200037")
-            .split("\\")
-            .map(Number);
-          orientation = determineOrientation(imageOrientationPatient);
+          if (image.data.string("x00200037") != undefined) {
+            const imageOrientationPatient = image.data
+              .string("x00200037")
+              .split("\\")
+              .map(Number);
+            orientation = determineOrientation(imageOrientationPatient);
+          }
+
+          return {
+            axialUrl,
+            pixelSpacing,
+            widthMM,
+            heightMM,
+            widthPX: image.width,
+            heightPX: image.height,
+            orientation,
+          };
         }
-
-        return {
-          axialUrl,
-          pixelSpacing,
-          widthMM,
-          heightMM,
-          widthPX: image.width,
-          heightPX: image.height,
-          orientation,
-        };
       }
     } catch (error) {
       toast.error("An error occured.");
