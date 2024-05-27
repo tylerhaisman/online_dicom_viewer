@@ -496,7 +496,9 @@ export default function Home() {
                 <hr className="border-white/20 bg-white/10" />
                 <p className="p-3 hover:bg-white/10 cursor-pointer">
                   <Link
-                    href={"https://tylerhaisman.com/online_dicom_viewer"}
+                    href={
+                      "https://www.tylerhaisman.com/documents/online_dicom_viewer/online_dicom_viewer.pdf"
+                    }
                     target="_blank"
                   >
                     Project Docs
